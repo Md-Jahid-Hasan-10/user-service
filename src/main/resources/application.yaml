@@ -1,0 +1,30 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: user-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/user_db
+    username: banking_admin
+    password: postgre2188
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+
+app:
+  jwt:
+    # Must match the Gateway later. At least 32 characters. Use an env var outside local dev.
+    secret: ${JWT_SECRET:banking-microservices-local-dev-secret-key-2026}
+    expiration-ms: 3600000
