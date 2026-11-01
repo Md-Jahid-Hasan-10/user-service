@@ -1,6 +1,16 @@
 server:
   port: 8083
-
+management:
+  server:
+    port: 18083
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 spring:
   application:
     name: user-service
@@ -24,6 +34,16 @@ spring:
       password: ${REDIS_PASSWORD:redis2188}
       timeout: 2s
       connect-timeout: 2s
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+        linger.ms: 0
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
 
 eureka:
   client:
@@ -45,3 +65,8 @@ app:
     token-ttl-hours: 24
     min-response-millis: 400
     max-emails-per-address-per-hour: 3
+
+  messaging:
+    producer-name: user-service
+    crypto-key: ${EVENT_CRYPTO_KEY}
+    relay-interval-ms: 1000
