@@ -68,5 +68,5 @@ app:
 
   messaging:
     producer-name: user-service
-    crypto-key: ${EVENT_CRYPTO_KEY}
+    crypto-key: ${EVENT_CRYPTO_KEY:pxUXlFhqre/31HUOw+mT9Oz80+rJz33fRtXx/kcGeTk=}
     relay-interval-ms: 1000
