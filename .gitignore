@@ -6,3 +6,4 @@ target/
 !.env.example
 *.log
 .DS_Store
+run.env

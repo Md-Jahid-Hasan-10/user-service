@@ -20,6 +20,14 @@ import java.util.concurrent.TimeoutException;
 @Component
 public class OutboxRelay {
 
+    /**
+     * Longer than max.block.ms + delivery.timeout.ms, so the wait here does
+     * not end before the broker gave up on its own. Otherwise a publish can
+     * be reported as failed while the message is still on its way, and the
+     * retry sends it a second time.
+     */
+    private static final long PUBLISH_TIMEOUT_SECONDS = 30;
+
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
 
     private final OutboxRepository repository;
@@ -52,7 +60,9 @@ public class OutboxRelay {
         for (OutboxEvent event : batch) {
             try {
                 kafka.send(event.getTopic(), event.getMessageKey(), event.getEnvelope())
-                        .get(10, TimeUnit.SECONDS);
+                        // Longer than max.block.ms + delivery.timeout.ms, so the wait
+                        // does not end before the broker gave up on its own.
+                        .get(PUBLISH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 event.markPublished(Instant.now());
                 published.increment();
             } catch (InterruptedException ex) {
