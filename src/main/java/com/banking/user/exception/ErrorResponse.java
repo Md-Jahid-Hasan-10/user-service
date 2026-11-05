@@ -6,5 +6,7 @@ public record ErrorResponse(
         LocalDateTime timestamp,
         int status,
         String error,
-        String message
+        String code,
+        String message,
+        String traceId
 ) {}

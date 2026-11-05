@@ -36,7 +36,12 @@ public class OutboxEvent {
 
     @Column(length = 500)
     private String lastError;
+    @Column(length = 100)
+    private String traceParent;
 
+    public String getTraceParent() { return traceParent; }
+    public void setTraceParent(String traceParent) { this.traceParent = traceParent; }
+    
     @PrePersist
     void onCreate() {
         this.createdAt = Instant.now();

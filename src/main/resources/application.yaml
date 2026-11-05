@@ -11,6 +11,15 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+        api.calls: true
+        kafka.consume: true
+        client.calls: true
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 spring:
   application:
     name: user-service
@@ -48,6 +57,10 @@ spring:
         max.block.ms: 15000
         request.timeout.ms: 5000
         delivery.timeout.ms: 10000
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
 
 eureka:
   client:
@@ -69,8 +82,26 @@ app:
     token-ttl-hours: 24
     min-response-millis: 400
     max-emails-per-address-per-hour: 3
+  observability:
+    log-bodies: true
+    max-body-length: 2048
 
   messaging:
     producer-name: user-service
     crypto-key: ${EVENT_CRYPTO_KEY:pxUXlFhqre/31HUOw+mT9Oz80+rJz33fRtXx/kcGeTk=}
     relay-interval-ms: 1000
+
+logging:
+  structured:
+    format:
+      file: logstash
+    json:
+      add:
+        service: ${spring.application.name}
+  file:
+    name: ${BANKING_LOG_DIR:${user.home}/banking-logs}/${spring.application.name}.json
+  logback:
+    rollingpolicy:
+      max-file-size: 20MB
+      max-history: 3
+      total-size-cap: 200MB

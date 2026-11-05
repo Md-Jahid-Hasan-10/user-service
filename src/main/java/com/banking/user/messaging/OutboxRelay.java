@@ -1,8 +1,11 @@
-package com.banking.user.messaging;
+package com.banking.user.messaging;   // change the package for each service
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -13,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -20,26 +24,24 @@ import java.util.concurrent.TimeoutException;
 @Component
 public class OutboxRelay {
 
-    /**
-     * Longer than max.block.ms + delivery.timeout.ms, so the wait here does
-     * not end before the broker gave up on its own. Otherwise a publish can
-     * be reported as failed while the message is still on its way, and the
-     * retry sends it a second time.
-     */
-    private static final long PUBLISH_TIMEOUT_SECONDS = 30;
-
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
 
     private final OutboxRepository repository;
     private final KafkaTemplate<String, String> kafka;
+    private final Tracer tracer;
+    private final Propagator propagator;
     private final Counter published;
     private final Counter failures;
 
     public OutboxRelay(OutboxRepository repository,
                        KafkaTemplate<String, String> kafka,
-                       MeterRegistry registry) {
+                       MeterRegistry registry,
+                       Tracer tracer,
+                       Propagator propagator) {
         this.repository = repository;
         this.kafka = kafka;
+        this.tracer = tracer;
+        this.propagator = propagator;
 
         this.published = Counter.builder("outbox.events.published")
                 .description("Events sent from the outbox to Kafka")
@@ -58,17 +60,19 @@ public class OutboxRelay {
         List<OutboxEvent> batch = repository.findTop50ByPublishedAtIsNullOrderByCreatedAtAsc();
 
         for (OutboxEvent event : batch) {
-            try {
+            // The span continues the trace of the request or message that created this event.
+            Span span = startSpan(event);
+            try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
                 kafka.send(event.getTopic(), event.getMessageKey(), event.getEnvelope())
-                        // Longer than max.block.ms + delivery.timeout.ms, so the wait
-                        // does not end before the broker gave up on its own.
-                        .get(PUBLISH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                        .get(10, TimeUnit.SECONDS);
                 event.markPublished(Instant.now());
                 published.increment();
             } catch (InterruptedException ex) {
+                span.error(ex);
                 Thread.currentThread().interrupt();
                 return;
             } catch (ExecutionException | TimeoutException ex) {
+                span.error(ex);
                 String reason = reasonOf(ex);
                 event.recordFailure(reason.length() > 500 ? reason.substring(0, 500) : reason);
                 failures.increment();
@@ -76,8 +80,27 @@ public class OutboxRelay {
                         event.getEventType(), event.getId(), event.getTopic(), reason);
                 // Stop here so a later event never overtakes this one.
                 return;
+            } finally {
+                span.end();
             }
         }
+    }
+
+    private Span startSpan(OutboxEvent event) {
+        Span span;
+        if (event.getTraceParent() == null) {
+            span = tracer.nextSpan().name("outbox publish").start();
+        } else {
+            Map<String, String> carrier = Map.of("traceparent", event.getTraceParent());
+            span = propagator.extract(carrier, Map::get).name("outbox publish").start();
+        }
+        span.tag("eventType", event.getEventType());
+        span.tag("topic", event.getTopic());
+        String key = event.getMessageKey();
+        if (key != null && key.startsWith("TXN-") && key.length() <= 60) {
+            span.tag("transferId", key);
+        }
+        return span;
     }
 
     @Scheduled(cron = "0 15 3 * * *")
