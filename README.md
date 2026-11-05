@@ -725,3 +725,11 @@ curl -i http://localhost:8083/internal/users/1
 - **`passwordHash` is never exposed** in any DTO, but it is stored in `users.password_hash` in clear column form (BCrypt hash, not reversible).
 - **The gateway's default `app.jwt.secret` differs from this service's default.** The gateway ships `banking-microservices-local-dev-secret-key-2026`; this service ships `78f2b81005ac23edf307e4368594d68fb1038cc667bc12f5b99946b8ea9e5ccb`. Both work only because `JWT_SECRET` happens to be set to the same value in `user-service/.env` and `api-gateway/.env`. Without that, no token issued here is accepted by the gateway.
 - **`user-service` is a separate Git repository** (remote `https://github.com/Md-Jahid-Hasan-10/user-service.git`, branch `main`).
+
+# user-service
+
+**Author:** [Jahid Hasan](https://github.com/Md-Jahid-Hasan-10)
+
+**Project:** Banking Microservices
+
+> The identity and registration service of the banking platform: it owns the customer profile, the BCrypt password hash, the role and the account status, issues the JWT, and publishes the registration and e-mail-verification events. HTTP port **8083** (Actuator/metrics on **18083**).
